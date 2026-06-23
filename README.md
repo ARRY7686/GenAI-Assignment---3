@@ -1,6 +1,6 @@
-# NotebookLM Clone — RAG-Powered Document Chat
+# NotebookLM Clone — Advanced RAG-Powered Document Chat
 
-Upload any PDF or plain text file and have a conversation with it. Built on a full RAG pipeline: chunking → embedding → vector storage → retrieval → grounded generation.
+Upload any PDF or plain text file and have a conversation with it. Built on a full Advanced RAG pipeline: chunking → embedding → vector storage → multi-query retrieval → grounded generation.
 
 ## Stack
 
@@ -11,7 +11,8 @@ Upload any PDF or plain text file and have a conversation with it. Built on a fu
 | Chunking | RecursiveCharacterTextSplitter |
 | Embeddings | OpenAI `text-embedding-3-large` |
 | Vector DB | Qdrant |
-| Generation | OpenAI `gpt-4.1-mini` |
+| Retrieval | LangChain `MultiQueryRetriever` |
+| Generation | OpenAI `gpt-4o-mini` |
 | UI | Vanilla HTML/CSS/JS |
 
 ## RAG Pipeline
@@ -20,8 +21,8 @@ Upload any PDF or plain text file and have a conversation with it. Built on a fu
 2. **Chunk** — `RecursiveCharacterTextSplitter` splits the document into 1000-character chunks with 200-character overlap, preserving sentence boundaries
 3. **Embed** — each chunk is converted to a vector using `text-embedding-3-large`
 4. **Store** — vectors are stored in a Qdrant collection named by a unique session UUID
-5. **Retrieve** — at query time, the question is embedded and the top-5 nearest chunks are returned
-6. **Generate** — the chunks are injected into the system prompt; `gpt-4.1-mini` answers strictly from that context
+5. **Retrieve (Advanced)** — at query time, `MultiQueryRetriever` uses an LLM to generate multiple semantic variations of the user's question, retrieves documents for all queries, and takes the unique union. This dramatically improves retrieval accuracy by overcoming wording variations.
+6. **Generate** — the retrieved chunks are injected into the system prompt; `gpt-4o-mini` answers strictly from that context
 
 ---
 
@@ -30,7 +31,7 @@ Upload any PDF or plain text file and have a conversation with it. Built on a fu
 ### Prerequisites
 - Node.js 18+
 - Docker (for local Qdrant) **or** a [Qdrant Cloud](https://cloud.qdrant.io) account
-- OpenAI API key
+- GitHub Personal Access Token (for inference via GitHub Models)
 
 ### 1. Install dependencies
 ```bash
@@ -45,7 +46,7 @@ docker run -p 6333:6333 qdrant/qdrant
 ### 3. Configure environment
 ```bash
 cp .env.example .env
-# Edit .env and fill in your keys
+# Edit .env and fill in your keys (GITHUB_TOKEN, etc.)
 ```
 
 ### 4. Run
@@ -70,7 +71,7 @@ npm start
    - **Build Command:** `npm install`
    - **Start Command:** `npm start`
 4. Add environment variables:
-   - `OPENAI_API_KEY`
+   - `GITHUB_TOKEN`
    - `QDRANT_URL`
    - `QDRANT_API_KEY`
 5. Deploy — Render provides a public HTTPS URL

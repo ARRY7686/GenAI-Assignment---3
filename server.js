@@ -7,8 +7,9 @@ import { fileURLToPath } from "url";
 import { v4 as uuidv4 } from "uuid";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { PDFParse } from "pdf-parse";
-import { OpenAIEmbeddings } from "@langchain/openai";
+import { OpenAIEmbeddings, ChatOpenAI } from "@langchain/openai";
 import { QdrantVectorStore } from "@langchain/qdrant";
+import { MultiQueryRetriever } from "langchain/retrievers/multi_query";
 import { OpenAI } from "openai";
 
 const GITHUB_BASE_URL = "https://models.inference.ai.azure.com";
@@ -102,8 +103,28 @@ app.post("/chat", async (req, res) => {
       collectionName: sessionId,
     });
 
-    // Retrieve top-5 most relevant chunks
-    const retriever = vectorStore.asRetriever({ k: 5 });
+    const llm = new ChatOpenAI({
+      modelName: "gpt-4o-mini",
+      temperature: 0,
+      apiKey: GITHUB_TOKEN,
+      configuration: { baseURL: GITHUB_BASE_URL },
+    });
+
+    // Advanced RAG: Multi-Query Retrieval expands the user query from different perspectives 
+    // to overcome variations in wording and improve retrieval accuracy.
+    const baseRetriever = vectorStore.asRetriever({ k: 5 });
+    
+    // Patch for LangChain 0.3 compatibility where MultiQueryRetriever still expects getRelevantDocuments
+    baseRetriever.getRelevantDocuments = async (q) => {
+      return await baseRetriever.invoke(q);
+    };
+
+    const retriever = MultiQueryRetriever.fromLLM({
+      llm,
+      retriever: baseRetriever,
+      queryCount: 3,
+    });
+
     const chunks = await retriever.invoke(question);
 
     const context = chunks
