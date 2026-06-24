@@ -144,10 +144,11 @@ app.post("/chat", async (req, res) => {
 
     const response = await client.chat.completions.create({
       model: "gpt-4o-mini",
+      temperature: 0.3,
       messages: [
         {
           role: "system",
-          content: `You are an AI assistant that answers questions strictly based on the document context below. Do not use outside knowledge. If the answer is not in the context, say "I couldn't find that in the document."\n\nDocument context:\n${context}`,
+          content: `You are a helpful assistant that answers questions based on the provided document context. Use the context to synthesize a clear, accurate answer. You may infer and summarize from the context — you do not need a verbatim match. Only say "I couldn't find that in the document." if the context contains absolutely no relevant information for the question.\n\nDocument context:\n${context}`,
         },
         { role: "user", content: question },
       ],
