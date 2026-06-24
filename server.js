@@ -6,7 +6,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { v4 as uuidv4 } from "uuid";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { PDFParse } from "pdf-parse";
+import pdfParse from "pdf-parse";
 import { OpenAIEmbeddings, ChatOpenAI } from "@langchain/openai";
 import { QdrantVectorStore } from "@langchain/qdrant";
 import { MultiQueryRetriever } from "langchain/retrievers/multi_query";
@@ -49,9 +49,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     let docs;
     if (ext === ".pdf") {
       const buffer = fs.readFileSync(filePath);
-      const parser = new PDFParse({ data: buffer });
-      await parser.load(buffer);
-      const result = await parser.getText();
+      const result = await pdfParse(buffer);
       docs = [{ pageContent: result.text, metadata: { source: req.file.originalname } }];
     } else {
       const text = fs.readFileSync(filePath, "utf-8");
