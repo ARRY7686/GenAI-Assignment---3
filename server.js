@@ -7,9 +7,8 @@ import { fileURLToPath } from "url";
 import { v4 as uuidv4 } from "uuid";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
-import { OpenAIEmbeddings, ChatOpenAI } from "@langchain/openai";
+import { OpenAIEmbeddings } from "@langchain/openai";
 import { QdrantVectorStore } from "@langchain/qdrant";
-import { MultiQueryRetriever } from "langchain/retrievers/multi_query";
 import { OpenAI } from "openai";
 
 const GITHUB_BASE_URL = "https://models.inference.ai.azure.com";
@@ -102,29 +101,40 @@ app.post("/chat", async (req, res) => {
       collectionName: sessionId,
     });
 
-    const llm = new ChatOpenAI({
-      modelName: "gpt-4o-mini",
-      temperature: 0,
-      apiKey: GITHUB_TOKEN,
-      configuration: { baseURL: GITHUB_BASE_URL },
-    });
-
-    // Advanced RAG: Multi-Query Retrieval expands the user query from different perspectives 
-    // to overcome variations in wording and improve retrieval accuracy.
+    // Advanced RAG: Multi-Query Retrieval — generate 3 alternative phrasings of the
+    // user question, retrieve chunks for each, then deduplicate before answering.
     const baseRetriever = vectorStore.asRetriever({ k: 5 });
-    
-    // Patch for LangChain 0.3 compatibility where MultiQueryRetriever still expects getRelevantDocuments
-    baseRetriever.getRelevantDocuments = async (q) => {
-      return await baseRetriever.invoke(q);
-    };
 
-    const retriever = MultiQueryRetriever.fromLLM({
-      llm,
-      retriever: baseRetriever,
-      queryCount: 3,
+    const mqResponse = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.7,
+      messages: [
+        {
+          role: "system",
+          content:
+            "Generate 3 alternative phrasings of the user's question to improve document retrieval. " +
+            "Output exactly 3 lines, one question per line, no numbering or bullet points.",
+        },
+        { role: "user", content: question },
+      ],
     });
 
-    const chunks = await retriever.invoke(question);
+    const altQueries = mqResponse.choices[0].message.content
+      .split("\n")
+      .map((q) => q.trim())
+      .filter(Boolean)
+      .slice(0, 3);
+
+    const allQueries = [question, ...altQueries];
+    const retrieved = await Promise.all(allQueries.map((q) => baseRetriever.invoke(q)));
+
+    // Deduplicate by pageContent
+    const seen = new Set();
+    const chunks = retrieved.flat().filter((doc) => {
+      if (seen.has(doc.pageContent)) return false;
+      seen.add(doc.pageContent);
+      return true;
+    });
 
     const context = chunks
       .map((c, i) => `[Chunk ${i + 1}${c.metadata?.loc?.pageNumber ? `, Page ${c.metadata.loc.pageNumber}` : ""}]\n${c.pageContent}`)
