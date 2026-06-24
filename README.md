@@ -21,8 +21,10 @@ Upload any PDF or plain text file and have a conversation with it. Built on a fu
 2. **Chunk** — `RecursiveCharacterTextSplitter` splits the document into 1000-character chunks with 200-character overlap, preserving sentence boundaries
 3. **Embed** — each chunk is converted to a vector using `text-embedding-3-large`
 4. **Store** — vectors are stored in a Qdrant collection named by a unique session UUID
-5. **Retrieve (Advanced Multi-Query)** — at query time, `gpt-4o-mini` generates 3 alternative phrasings of the user's question. Qdrant is queried with all 4 queries in parallel (original + 3 variants), results are deduplicated, giving a broader and more accurate context window.
-6. **Generate** — the deduplicated chunks are injected into the system prompt; `gpt-4o-mini` synthesizes a grounded answer from that context
+5. **Retrieve (Advanced Multi-Query)** — at query time, `gpt-4o-mini` generates 3 alternative phrasings of the user's question. Qdrant is queried with all 4 queries in parallel (original + 3 variants), results are deduplicated, giving a broader and more accurate candidate pool.
+6. **Rerank** — each candidate chunk is scored 0–1 for relevance to the original question in a single batched LLM call. Chunks scoring below 0.3 are dropped; the rest are sorted by score so the most relevant context appears first.
+7. **Context Compression** — for each top-ranked chunk, the LLM extracts only the sentences directly relevant to the question. This removes noise and keeps the final prompt concise, improving answer quality.
+8. **Generate** — the compressed, reranked chunks are injected into the system prompt; `gpt-4o-mini` synthesizes a grounded answer from that context
 
 ---
 

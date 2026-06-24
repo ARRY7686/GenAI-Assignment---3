@@ -132,11 +132,82 @@ app.post("/chat", async (req, res) => {
 
     // Deduplicate by pageContent
     const seen = new Set();
-    const chunks = retrieved.flat().filter((doc) => {
+    const candidates = retrieved.flat().filter((doc) => {
       if (seen.has(doc.pageContent)) return false;
       seen.add(doc.pageContent);
       return true;
     });
+
+    // Advanced RAG: Reranking — score each candidate chunk for relevance to the
+    // original question in a single batched LLM call, then keep the top chunks.
+    const rerankMessages = [
+      {
+        role: "system",
+        content:
+          "You are a relevance scoring engine. Given a question and a list of text chunks, " +
+          "output a JSON array of numbers (one per chunk, in order) representing relevance " +
+          "scores from 0.0 (irrelevant) to 1.0 (highly relevant). Output ONLY the JSON array, no explanation.",
+      },
+      {
+        role: "user",
+        content:
+          `Question: ${question}\n\nChunks:\n` +
+          candidates.map((c, i) => `[${i}] ${c.pageContent}`).join("\n\n"),
+      },
+    ];
+
+    let reranked = candidates; // fallback: keep original order
+    try {
+      const rerankResponse = await client.chat.completions.create({
+        model: "gpt-4o-mini",
+        temperature: 0,
+        messages: rerankMessages,
+        response_format: { type: "json_object" },
+      });
+      // The model may wrap the array in an object; handle both cases
+      const parsed = JSON.parse(rerankResponse.choices[0].message.content);
+      const scores = Array.isArray(parsed) ? parsed : Object.values(parsed)[0];
+      reranked = candidates
+        .map((doc, i) => ({ doc, score: typeof scores[i] === "number" ? scores[i] : 0 }))
+        .sort((a, b) => b.score - a.score)
+        .filter((item) => item.score >= 0.3)   // drop clearly irrelevant chunks
+        .map((item) => item.doc);
+      if (reranked.length === 0) reranked = candidates.slice(0, 5); // safety: never empty
+    } catch (_) {
+      // If reranking fails, continue with unranked candidates
+    }
+
+    // Advanced RAG: Context Compression — for each reranked chunk, extract only the
+    // sentences that are directly relevant to the question, reducing noise in the prompt.
+    const compressionPromises = reranked.slice(0, 6).map((doc) =>
+      client.chat.completions.create({
+        model: "gpt-4o-mini",
+        temperature: 0,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Extract and return only the sentences from the text below that are directly " +
+              "relevant to answering the question. Preserve the original wording exactly. " +
+              "If nothing is relevant, return an empty string.",
+          },
+          {
+            role: "user",
+            content: `Question: ${question}\n\nText:\n${doc.pageContent}`,
+          },
+        ],
+      })
+    );
+
+    const compressionResults = await Promise.all(compressionPromises);
+    const compressedChunks = compressionResults
+      .map((r, i) => ({
+        pageContent: r.choices[0].message.content.trim(),
+        metadata: reranked[i].metadata,
+      }))
+      .filter((c) => c.pageContent.length > 0);
+
+    const chunks = compressedChunks.length > 0 ? compressedChunks : reranked;
 
     const context = chunks
       .map((c, i) => `[Chunk ${i + 1}${c.metadata?.loc?.pageNumber ? `, Page ${c.metadata.loc.pageNumber}` : ""}]\n${c.pageContent}`)
