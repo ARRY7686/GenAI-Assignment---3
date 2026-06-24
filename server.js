@@ -101,6 +101,8 @@ app.post("/chat", async (req, res) => {
       collectionName: sessionId,
     });
 
+    const client = new OpenAI({ baseURL: GITHUB_BASE_URL, apiKey: GITHUB_TOKEN });
+
     // Advanced RAG: Multi-Query Retrieval — generate 3 alternative phrasings of the
     // user question, retrieve chunks for each, then deduplicate before answering.
     const baseRetriever = vectorStore.asRetriever({ k: 5 });
@@ -140,7 +142,6 @@ app.post("/chat", async (req, res) => {
       .map((c, i) => `[Chunk ${i + 1}${c.metadata?.loc?.pageNumber ? `, Page ${c.metadata.loc.pageNumber}` : ""}]\n${c.pageContent}`)
       .join("\n\n---\n\n");
 
-    const client = new OpenAI({ baseURL: GITHUB_BASE_URL, apiKey: GITHUB_TOKEN });
     const response = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
