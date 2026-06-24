@@ -8,6 +8,416 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: #0f0f11; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
 
+    header { padding: 14px 24px; background: #1a1a1f; border-bottom: 1px solid #2a2a35; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+    header h1 { font-size: 1.1rem; font-weight: 600; color: #fff; }
+    header span { font-size: 0.78rem; color: #888; background: #2a2a35; padding: 2px 8px; border-radius: 99px; }
+
+    .layout { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Left sidebar: Upload ── */
+    .sidebar-left { width: 260px; min-width: 220px; background: #14141a; border-right: 1px solid #2a2a35; display: flex; flex-direction: column; padding: 20px 14px; gap: 14px; flex-shrink: 0; }
+    .sidebar-left h2 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: #666; }
+
+    .drop-zone { border: 2px dashed #3a3a50; border-radius: 10px; padding: 24px 12px; text-align: center; cursor: pointer; transition: all 0.2s; color: #666; font-size: 0.82rem; line-height: 1.5; }
+    .drop-zone:hover, .drop-zone.over { border-color: #6c63ff; color: #a09cf7; background: #1a1a2e; }
+    .drop-zone svg { display: block; margin: 0 auto 8px; opacity: 0.5; }
+    #file-input { display: none; }
+
+    .upload-btn { width: 100%; padding: 9px; background: #6c63ff; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 0.88rem; font-weight: 500; transition: background 0.2s; }
+    .upload-btn:hover:not(:disabled) { background: #5a52e0; }
+    .upload-btn:disabled { background: #2e2e44; color: #555; cursor: not-allowed; }
+
+    .status { font-size: 0.78rem; color: #888; min-height: 18px; }
+    .status.success { color: #4ade80; }
+    .status.error { color: #f87171; }
+    .status.loading { color: #facc15; }
+
+    .doc-badge { background: #1e1e2e; border: 1px solid #3a3a50; border-radius: 8px; padding: 9px 11px; font-size: 0.78rem; color: #a09cf7; display: none; word-break: break-all; }
+    .doc-badge.show { display: block; }
+
+    /* ── Chat panel ── */
+    .chat-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+    .messages { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+    .messages::-webkit-scrollbar { width: 5px; }
+    .messages::-webkit-scrollbar-thumb { background: #2a2a35; border-radius: 3px; }
+
+    .empty-state { margin: auto; text-align: center; color: #444; }
+    .empty-state p { font-size: 0.88rem; margin-top: 10px; }
+
+    .msg { max-width: 680px; width: 100%; }
+    .msg.user { align-self: flex-end; }
+    .msg.assistant { align-self: flex-start; }
+    .msg-bubble { padding: 11px 15px; border-radius: 12px; font-size: 0.88rem; line-height: 1.65; white-space: pre-wrap; }
+    .msg.user .msg-bubble { background: #6c63ff; color: #fff; border-bottom-right-radius: 4px; }
+    .msg.assistant .msg-bubble { background: #1e1e2e; border: 1px solid #2a2a35; border-bottom-left-radius: 4px; }
+    .msg-label { font-size: 0.7rem; color: #555; margin-bottom: 4px; padding: 0 4px; }
+    .msg.user .msg-label { text-align: right; }
+    .thinking .msg-bubble { color: #888; font-style: italic; }
+
+    .input-bar { padding: 14px 20px; border-top: 1px solid #2a2a35; display: flex; gap: 10px; background: #14141a; flex-shrink: 0; }
+    #question { flex: 1; background: #1e1e2e; border: 1px solid #3a3a50; color: #e0e0e0; padding: 9px 13px; border-radius: 8px; font-size: 0.88rem; outline: none; resize: none; max-height: 120px; }
+    #question:focus { border-color: #6c63ff; }
+    #question::placeholder { color: #444; }
+    .send-btn { padding: 9px 16px; background: #6c63ff; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 0.88rem; font-weight: 500; align-self: flex-end; transition: background 0.2s; }
+    .send-btn:hover:not(:disabled) { background: #5a52e0; }
+    .send-btn:disabled { background: #2e2e44; color: #555; cursor: not-allowed; }
+
+    /* ── Right sidebar: Pipeline trace ── */
+    .sidebar-right { width: 300px; min-width: 260px; background: #12121a; border-left: 1px solid #2a2a35; display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
+    .pipeline-header { padding: 14px 16px 10px; border-bottom: 1px solid #2a2a35; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .pipeline-header h2 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: #666; }
+    .total-time { font-size: 0.72rem; color: #a09cf7; background: #1e1e2e; padding: 2px 7px; border-radius: 99px; display: none; }
+    .total-time.show { display: block; }
+
+    .pipeline-body { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+    .pipeline-body::-webkit-scrollbar { width: 4px; }
+    .pipeline-body::-webkit-scrollbar-thumb { background: #2a2a35; border-radius: 2px; }
+
+    .pipeline-idle { color: #444; font-size: 0.8rem; text-align: center; margin: auto; padding: 20px 0; }
+
+    /* Stage card */
+    .stage { background: #1a1a24; border: 1px solid #2a2a38; border-radius: 10px; overflow: hidden; }
+    .stage-header { display: flex; align-items: center; gap: 8px; padding: 9px 12px; cursor: pointer; user-select: none; }
+    .stage-icon { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; flex-shrink: 0; }
+    .stage-name { font-size: 0.8rem; font-weight: 500; color: #c8c8d8; flex: 1; }
+    .stage-ms { font-size: 0.7rem; color: #666; margin-left: auto; flex-shrink: 0; }
+    .stage-chevron { font-size: 0.6rem; color: #555; transition: transform 0.2s; margin-left: 4px; }
+    .stage.open .stage-chevron { transform: rotate(90deg); }
+
+    .stage-body { display: none; padding: 0 12px 10px; }
+    .stage.open .stage-body { display: block; }
+
+    /* Stage colour themes */
+    .stage-mq .stage-icon { background: #1e2040; color: #818cf8; }
+    .stage-retrieval .stage-icon { background: #1a2e2a; color: #34d399; }
+    .stage-rerank .stage-icon { background: #2a1e2a; color: #c084fc; }
+    .stage-compress .stage-icon { background: #2a241a; color: #fb923c; }
+    .stage-gen .stage-icon { background: #1e2a1e; color: #4ade80; }
+
+    /* Bar chart for scores */
+    .score-bars { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+    .score-row { display: flex; align-items: center; gap: 6px; }
+    .score-bar-wrap { flex: 1; background: #2a2a38; border-radius: 3px; height: 6px; overflow: hidden; }
+    .score-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+    .score-val { font-size: 0.68rem; color: #888; width: 28px; text-align: right; flex-shrink: 0; }
+    .score-label { font-size: 0.68rem; color: #555; width: 40px; flex-shrink: 0; }
+
+    /* Query chips */
+    .query-chips { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+    .query-chip { background: #1e1e2e; border: 1px solid #2a2a3e; border-radius: 6px; padding: 5px 8px; font-size: 0.72rem; color: #9090b0; line-height: 1.4; }
+
+    /* Stat row */
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+    .stat-box { background: #1e1e2e; border-radius: 6px; padding: 7px 8px; }
+    .stat-val { font-size: 1rem; font-weight: 600; color: #e0e0f0; line-height: 1; }
+    .stat-lbl { font-size: 0.65rem; color: #666; margin-top: 3px; }
+
+    /* Progress bar for compression ratio */
+    .compress-bar-wrap { background: #2a2a38; border-radius: 3px; height: 6px; overflow: hidden; margin-top: 8px; }
+    .compress-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #fb923c, #f97316); transition: width 0.4s ease; }
+    .compress-label { display: flex; justify-content: space-between; font-size: 0.68rem; color: #666; margin-top: 4px; }
+
+    /* Spinner */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width: 14px; height: 14px; border: 2px solid #2a2a44; border-top-color: #6c63ff; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+
+    /* Stage running state */
+    .stage.running .stage-icon { opacity: 0.5; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>NotebookLM Clone</h1>
+    <span>RAG-powered</span>
+  </header>
+
+  <div class="layout">
+    <!-- Left sidebar: Upload -->
+    <aside class="sidebar-left">
+      <h2>Document</h2>
+      <div class="drop-zone" id="drop-zone">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 16v-8m0 0-3 3m3-3 3 3"/><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
+        Drop PDF or TXT here<br/>or click to browse
+        <input type="file" id="file-input" accept=".pdf,.txt" />
+      </div>
+      <button class="upload-btn" id="upload-btn" disabled>Upload &amp; Index</button>
+      <div class="status" id="status"></div>
+      <div class="doc-badge" id="doc-badge"></div>
+    </aside>
+
+    <!-- Chat panel -->
+    <section class="chat-panel">
+      <div class="messages" id="messages">
+        <div class="empty-state" id="empty-state">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.3"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <p>Upload a document, then ask anything about it.</p>
+        </div>
+      </div>
+      <div class="input-bar">
+        <textarea id="question" rows="1" placeholder="Ask a question about your document…" disabled></textarea>
+        <button class="send-btn" id="send-btn" disabled>Send</button>
+      </div>
+    </section>
+
+    <!-- Right sidebar: Pipeline trace -->
+    <aside class="sidebar-right">
+      <div class="pipeline-header">
+        <h2>Pipeline Trace</h2>
+        <span class="total-time" id="total-time"></span>
+      </div>
+      <div class="pipeline-body" id="pipeline-body">
+        <div class="pipeline-idle" id="pipeline-idle">Ask a question to see the RAG pipeline in action.</div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    let sessionId = null;
+    let selectedFile = null;
+
+    const dropZone = document.getElementById("drop-zone");
+    const fileInput = document.getElementById("file-input");
+    const uploadBtn = document.getElementById("upload-btn");
+    const statusEl = document.getElementById("status");
+    const docBadge = document.getElementById("doc-badge");
+    const messagesEl = document.getElementById("messages");
+    const emptyState = document.getElementById("empty-state");
+    const questionEl = document.getElementById("question");
+    const sendBtn = document.getElementById("send-btn");
+    const pipelineBody = document.getElementById("pipeline-body");
+    const pipelineIdle = document.getElementById("pipeline-idle");
+    const totalTimeEl = document.getElementById("total-time");
+
+    // ── File selection ────────────────────────────────────────────────────────
+    dropZone.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => selectFile(fileInput.files[0]));
+    dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("over"); });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("over"));
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault(); dropZone.classList.remove("over"); selectFile(e.dataTransfer.files[0]);
+    });
+
+    function selectFile(file) {
+      if (!file) return;
+      if (!file.name.endsWith(".pdf") && !file.name.endsWith(".txt")) {
+        setStatus("Only PDF and .txt files are supported.", "error"); return;
+      }
+      selectedFile = file;
+      dropZone.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6c63ff" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${esc(file.name)}<input type="file" id="file-input" accept=".pdf,.txt" style="display:none"/>`;
+      document.getElementById("file-input").addEventListener("change", (e) => selectFile(e.target.files[0]));
+      uploadBtn.disabled = false;
+      setStatus("");
+    }
+
+    // ── Upload & Index ────────────────────────────────────────────────────────
+    uploadBtn.addEventListener("click", async () => {
+      if (!selectedFile) return;
+      uploadBtn.disabled = true;
+      setStatus("Uploading & indexing…", "loading");
+      const form = new FormData();
+      form.append("file", selectedFile);
+      try {
+        const res = await fetch("/upload", { method: "POST", body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        sessionId = data.sessionId;
+        setStatus(`✓ Indexed ${data.chunks} chunks. Ready to chat!`, "success");
+        docBadge.textContent = "📄 " + selectedFile.name;
+        docBadge.classList.add("show");
+        questionEl.disabled = false;
+        sendBtn.disabled = false;
+        questionEl.focus();
+      } catch (err) {
+        setStatus("Error: " + err.message, "error");
+        uploadBtn.disabled = false;
+      }
+    });
+
+    // ── Chat ──────────────────────────────────────────────────────────────────
+    sendBtn.addEventListener("click", sendMessage);
+    questionEl.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+
+    async function sendMessage() {
+      const q = questionEl.value.trim();
+      if (!q || !sessionId) return;
+
+      emptyState.style.display = "none";
+      appendMessage("user", q);
+      questionEl.value = "";
+      questionEl.style.height = "auto";
+      sendBtn.disabled = true;
+
+      showPipelineRunning();
+      const thinkingEl = appendMessage("assistant", "Thinking…", true);
+
+      try {
+        const res = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: q, sessionId }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        thinkingEl.querySelector(".msg-bubble").textContent = data.answer;
+        thinkingEl.classList.remove("thinking");
+        if (data.metrics) renderPipeline(data.metrics);
+      } catch (err) {
+        thinkingEl.querySelector(".msg-bubble").textContent = "Error: " + err.message;
+        thinkingEl.classList.remove("thinking");
+        resetPipeline();
+      } finally {
+        sendBtn.disabled = false;
+        questionEl.focus();
+      }
+    }
+
+    // ── Pipeline sidebar ──────────────────────────────────────────────────────
+    const STAGES = [
+      { key: "multiQuery",   cls: "stage-mq",       icon: "⟳", label: "Multi-Query" },
+      { key: "retrieval",    cls: "stage-retrieval", icon: "⊕", label: "Retrieval" },
+      { key: "reranking",    cls: "stage-rerank",    icon: "↑↓", label: "Reranking" },
+      { key: "compression",  cls: "stage-compress",  icon: "⊡", label: "Compression" },
+      { key: "generation",   cls: "stage-gen",       icon: "✦", label: "Generation" },
+    ];
+
+    function showPipelineRunning() {
+      pipelineIdle && (pipelineIdle.style.display = "none");
+      totalTimeEl.classList.remove("show");
+      pipelineBody.innerHTML = "";
+      STAGES.forEach(({ cls, icon, label }) => {
+        const el = document.createElement("div");
+        el.className = `stage ${cls} running`;
+        el.innerHTML = `<div class="stage-header">
+          <div class="stage-icon">${icon}</div>
+          <div class="stage-name">${label}</div>
+          <div class="spinner"></div>
+        </div>`;
+        pipelineBody.appendChild(el);
+      });
+    }
+
+    function resetPipeline() {
+      pipelineBody.innerHTML = "";
+      const idle = document.createElement("div");
+      idle.className = "pipeline-idle";
+      idle.textContent = "Ask a question to see the RAG pipeline in action.";
+      pipelineBody.appendChild(idle);
+    }
+
+    function renderPipeline(metrics) {
+      pipelineBody.innerHTML = "";
+      totalTimeEl.textContent = metrics.totalMs + " ms total";
+      totalTimeEl.classList.add("show");
+
+      STAGES.forEach(({ key, cls, icon, label }, idx) => {
+        const stage = metrics.stages[key] || {};
+        const el = document.createElement("div");
+        el.className = `stage ${cls}`;
+        el.innerHTML = `<div class="stage-header">
+          <div class="stage-icon">${icon}</div>
+          <div class="stage-name">${label}</div>
+          <div class="stage-ms">${stage.ms != null ? stage.ms + " ms" : "—"}</div>
+          <div class="stage-chevron">▶</div>
+        </div>
+        <div class="stage-body">${stageBody(key, stage)}</div>`;
+        // first stage open by default
+        if (idx === 0) el.classList.add("open");
+        el.querySelector(".stage-header").addEventListener("click", () => el.classList.toggle("open"));
+        pipelineBody.appendChild(el);
+
+        // animate in
+        el.style.opacity = "0";
+        el.style.transform = "translateY(6px)";
+        setTimeout(() => {
+          el.style.transition = "opacity 0.25s, transform 0.25s";
+          el.style.opacity = "1";
+          el.style.transform = "translateY(0)";
+        }, idx * 80);
+      });
+    }
+
+    function stageBody(key, s) {
+      if (key === "multiQuery") {
+        if (!s.queries || s.queries.length === 0) return `<p style="font-size:0.75rem;color:#555">No data</p>`;
+        return `<div style="font-size:0.72rem;color:#666;margin-bottom:4px">Generated ${s.queries.length} alt queries:</div>
+          <div class="query-chips">${s.queries.map(q => `<div class="query-chip">${esc(q)}</div>`).join("")}</div>`;
+      }
+      if (key === "retrieval") {
+        return `<div class="stat-grid">
+          <div class="stat-box"><div class="stat-val">${s.queriesRun ?? "—"}</div><div class="stat-lbl">Queries run</div></div>
+          <div class="stat-box"><div class="stat-val">${s.candidatesFound ?? "—"}</div><div class="stat-lbl">Candidates</div></div>
+        </div>`;
+      }
+      if (key === "reranking") {
+        const scores = s.scores || [];
+        const bars = scores.map((score, i) => {
+          const pct = Math.round(score * 100);
+          const color = score >= 0.7 ? "#4ade80" : score >= 0.4 ? "#facc15" : "#f87171";
+          return `<div class="score-row">
+            <div class="score-label">Chunk ${i + 1}</div>
+            <div class="score-bar-wrap"><div class="score-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+            <div class="score-val">${score.toFixed(2)}</div>
+          </div>`;
+        }).join("");
+        return `<div class="stat-grid" style="margin-bottom:8px">
+          <div class="stat-box"><div class="stat-val" style="color:#4ade80">${s.keptCount ?? "—"}</div><div class="stat-lbl">Kept</div></div>
+          <div class="stat-box"><div class="stat-val" style="color:#f87171">${s.droppedCount ?? "—"}</div><div class="stat-lbl">Dropped</div></div>
+        </div>
+        ${scores.length > 0 ? `<div style="font-size:0.72rem;color:#666;margin-bottom:4px">Relevance scores:</div><div class="score-bars">${bars}</div>` : ""}`;
+      }
+      if (key === "compression") {
+        const ratio = s.compressionRatio ?? 0;
+        return `<div class="stat-grid" style="margin-bottom:8px">
+          <div class="stat-box"><div class="stat-val">${s.inputChunks ?? "—"}</div><div class="stat-lbl">Input chunks</div></div>
+          <div class="stat-box"><div class="stat-val">${s.outputChunks ?? "—"}</div><div class="stat-lbl">Output chunks</div></div>
+        </div>
+        <div style="font-size:0.72rem;color:#666;margin-bottom:4px">Noise removed: ${ratio}%</div>
+        <div class="compress-bar-wrap"><div class="compress-bar-fill" style="width:${ratio}%"></div></div>
+        <div class="compress-label"><span>0%</span><span>100%</span></div>`;
+      }
+      if (key === "generation") {
+        return `<div class="stat-grid">
+          <div class="stat-box"><div class="stat-val">${s.contextChunks ?? "—"}</div><div class="stat-lbl">Context chunks</div></div>
+          <div class="stat-box"><div class="stat-val">${s.promptChars != null ? (s.promptChars > 999 ? (s.promptChars/1000).toFixed(1)+"k" : s.promptChars) : "—"}</div><div class="stat-lbl">Prompt chars</div></div>
+        </div>`;
+      }
+      return "";
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function appendMessage(role, text, thinking = false) {
+      const div = document.createElement("div");
+      div.className = `msg ${role}${thinking ? " thinking" : ""}`;
+      div.innerHTML = `<div class="msg-label">${role === "user" ? "You" : "AI"}</div><div class="msg-bubble">${esc(text)}</div>`;
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return div;
+    }
+
+    function setStatus(msg, type = "") {
+      statusEl.textContent = msg;
+      statusEl.className = "status " + type;
+    }
+
+    function esc(s) {
+      return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+
+    questionEl.addEventListener("input", () => {
+      questionEl.style.height = "auto";
+      questionEl.style.height = Math.min(questionEl.scrollHeight, 120) + "px";
+    });
+  </script>
+</body>
+</html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NotebookLM — RAG Chat</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f0f11; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+
     header { padding: 16px 24px; background: #1a1a1f; border-bottom: 1px solid #2a2a35; display: flex; align-items: center; gap: 12px; }
     header h1 { font-size: 1.1rem; font-weight: 600; color: #fff; }
     header span { font-size: 0.8rem; color: #888; background: #2a2a35; padding: 2px 8px; border-radius: 99px; }

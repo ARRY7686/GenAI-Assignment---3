@@ -91,6 +91,9 @@ app.post("/chat", async (req, res) => {
   }
 
   try {
+    const pipelineStart = Date.now();
+    const metrics = { stages: {} };
+
     const embeddings = new OpenAIEmbeddings({
       model: "text-embedding-3-large",
       apiKey: GITHUB_TOKEN,
@@ -103,10 +106,8 @@ app.post("/chat", async (req, res) => {
 
     const client = new OpenAI({ baseURL: GITHUB_BASE_URL, apiKey: GITHUB_TOKEN });
 
-    // Advanced RAG: Multi-Query Retrieval — generate 3 alternative phrasings of the
-    // user question, retrieve chunks for each, then deduplicate before answering.
-    const baseRetriever = vectorStore.asRetriever({ k: 5 });
-
+    // ── Stage 1: Multi-Query ──────────────────────────────────────────────────
+    let t = Date.now();
     const mqResponse = await client.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.7,
@@ -127,10 +128,17 @@ app.post("/chat", async (req, res) => {
       .filter(Boolean)
       .slice(0, 3);
 
+    metrics.stages.multiQuery = {
+      ms: Date.now() - t,
+      queries: altQueries,
+    };
+
+    // ── Stage 2: Retrieval ────────────────────────────────────────────────────
+    t = Date.now();
+    const baseRetriever = vectorStore.asRetriever({ k: 5 });
     const allQueries = [question, ...altQueries];
     const retrieved = await Promise.all(allQueries.map((q) => baseRetriever.invoke(q)));
 
-    // Deduplicate by pageContent
     const seen = new Set();
     const candidates = retrieved.flat().filter((doc) => {
       if (seen.has(doc.pageContent)) return false;
@@ -138,47 +146,58 @@ app.post("/chat", async (req, res) => {
       return true;
     });
 
-    // Advanced RAG: Reranking — score each candidate chunk for relevance to the
-    // original question in a single batched LLM call, then keep the top chunks.
-    const rerankMessages = [
-      {
-        role: "system",
-        content:
-          "You are a relevance scoring engine. Given a question and a list of text chunks, " +
-          "output a JSON array of numbers (one per chunk, in order) representing relevance " +
-          "scores from 0.0 (irrelevant) to 1.0 (highly relevant). Output ONLY the JSON array, no explanation.",
-      },
-      {
-        role: "user",
-        content:
-          `Question: ${question}\n\nChunks:\n` +
-          candidates.map((c, i) => `[${i}] ${c.pageContent}`).join("\n\n"),
-      },
-    ];
+    metrics.stages.retrieval = {
+      ms: Date.now() - t,
+      queriesRun: allQueries.length,
+      candidatesFound: candidates.length,
+    };
 
-    let reranked = candidates; // fallback: keep original order
+    // ── Stage 3: Reranking ────────────────────────────────────────────────────
+    t = Date.now();
+    let reranked = candidates;
+    let rerankScores = [];
     try {
       const rerankResponse = await client.chat.completions.create({
         model: "gpt-4o-mini",
         temperature: 0,
-        messages: rerankMessages,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a relevance scoring engine. Given a question and a list of text chunks, " +
+              "output a JSON array of numbers (one per chunk, in order) representing relevance " +
+              "scores from 0.0 (irrelevant) to 1.0 (highly relevant). Output ONLY the JSON array, no explanation.",
+          },
+          {
+            role: "user",
+            content:
+              `Question: ${question}\n\nChunks:\n` +
+              candidates.map((c, i) => `[${i}] ${c.pageContent}`).join("\n\n"),
+          },
+        ],
         response_format: { type: "json_object" },
       });
-      // The model may wrap the array in an object; handle both cases
       const parsed = JSON.parse(rerankResponse.choices[0].message.content);
       const scores = Array.isArray(parsed) ? parsed : Object.values(parsed)[0];
-      reranked = candidates
-        .map((doc, i) => ({ doc, score: typeof scores[i] === "number" ? scores[i] : 0 }))
-        .sort((a, b) => b.score - a.score)
-        .filter((item) => item.score >= 0.3)   // drop clearly irrelevant chunks
-        .map((item) => item.doc);
-      if (reranked.length === 0) reranked = candidates.slice(0, 5); // safety: never empty
+      rerankScores = candidates.map((_, i) =>
+        typeof scores[i] === "number" ? Math.round(scores[i] * 100) / 100 : 0
+      );
+      const scored = candidates.map((doc, i) => ({ doc, score: rerankScores[i] }));
+      const kept = scored.filter((item) => item.score >= 0.3).sort((a, b) => b.score - a.score);
+      reranked = kept.length > 0 ? kept.map((item) => item.doc) : candidates.slice(0, 5);
     } catch (_) {
-      // If reranking fails, continue with unranked candidates
+      // fallback: unranked
     }
 
-    // Advanced RAG: Context Compression — for each reranked chunk, extract only the
-    // sentences that are directly relevant to the question, reducing noise in the prompt.
+    metrics.stages.reranking = {
+      ms: Date.now() - t,
+      scores: rerankScores,
+      keptCount: reranked.length,
+      droppedCount: candidates.length - reranked.length,
+    };
+
+    // ── Stage 4: Context Compression ─────────────────────────────────────────
+    t = Date.now();
     const compressionPromises = reranked.slice(0, 6).map((doc) =>
       client.chat.completions.create({
         model: "gpt-4o-mini",
@@ -207,12 +226,25 @@ app.post("/chat", async (req, res) => {
       }))
       .filter((c) => c.pageContent.length > 0);
 
-    const chunks = compressedChunks.length > 0 ? compressedChunks : reranked;
+    const finalChunks = compressedChunks.length > 0 ? compressedChunks : reranked;
 
-    const context = chunks
+    const totalInputChars = reranked.slice(0, 6).reduce((s, d) => s + d.pageContent.length, 0);
+    const totalOutputChars = finalChunks.reduce((s, d) => s + d.pageContent.length, 0);
+    metrics.stages.compression = {
+      ms: Date.now() - t,
+      inputChunks: reranked.slice(0, 6).length,
+      outputChunks: finalChunks.length,
+      compressionRatio: totalInputChars > 0
+        ? Math.round((1 - totalOutputChars / totalInputChars) * 100)
+        : 0,
+    };
+
+    const context = finalChunks
       .map((c, i) => `[Chunk ${i + 1}${c.metadata?.loc?.pageNumber ? `, Page ${c.metadata.loc.pageNumber}` : ""}]\n${c.pageContent}`)
       .join("\n\n---\n\n");
 
+    // ── Stage 5: Generation ───────────────────────────────────────────────────
+    t = Date.now();
     const response = await client.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.3,
@@ -225,7 +257,14 @@ app.post("/chat", async (req, res) => {
       ],
     });
 
-    res.json({ answer: response.choices[0].message.content });
+    metrics.stages.generation = {
+      ms: Date.now() - t,
+      contextChunks: finalChunks.length,
+      promptChars: context.length,
+    };
+    metrics.totalMs = Date.now() - pipelineStart;
+
+    res.json({ answer: response.choices[0].message.content, metrics });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
