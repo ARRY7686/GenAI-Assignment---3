@@ -7,12 +7,12 @@ Upload any PDF or plain text file and have a conversation with it. Built on a fu
 | Layer | Technology |
 |---|---|
 | Server | Node.js + Express |
-| Document loading | LangChain PDFLoader / TextLoader |
-| Chunking | RecursiveCharacterTextSplitter |
-| Embeddings | OpenAI `text-embedding-3-large` |
+| Document loading | `pdf-parse`, `fs.readFileSync` |
+| Chunking | `RecursiveCharacterTextSplitter` (LangChain) |
+| Embeddings | OpenAI `text-embedding-3-large` via GitHub Models |
 | Vector DB | Qdrant |
-| Retrieval | LangChain `MultiQueryRetriever` |
-| Generation | OpenAI `gpt-4o-mini` |
+| Retrieval | Manual Multi-Query Retrieval (OpenAI + Qdrant) |
+| Generation | OpenAI `gpt-4o-mini` via GitHub Models |
 | UI | Vanilla HTML/CSS/JS |
 
 ## RAG Pipeline
@@ -21,8 +21,8 @@ Upload any PDF or plain text file and have a conversation with it. Built on a fu
 2. **Chunk** — `RecursiveCharacterTextSplitter` splits the document into 1000-character chunks with 200-character overlap, preserving sentence boundaries
 3. **Embed** — each chunk is converted to a vector using `text-embedding-3-large`
 4. **Store** — vectors are stored in a Qdrant collection named by a unique session UUID
-5. **Retrieve (Advanced)** — at query time, `MultiQueryRetriever` uses an LLM to generate multiple semantic variations of the user's question, retrieves documents for all queries, and takes the unique union. This dramatically improves retrieval accuracy by overcoming wording variations.
-6. **Generate** — the retrieved chunks are injected into the system prompt; `gpt-4o-mini` answers strictly from that context
+5. **Retrieve (Advanced Multi-Query)** — at query time, `gpt-4o-mini` generates 3 alternative phrasings of the user's question. Qdrant is queried with all 4 queries in parallel (original + 3 variants), results are deduplicated, giving a broader and more accurate context window.
+6. **Generate** — the deduplicated chunks are injected into the system prompt; `gpt-4o-mini` synthesizes a grounded answer from that context
 
 ---
 
