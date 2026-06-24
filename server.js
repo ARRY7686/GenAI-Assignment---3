@@ -20,10 +20,11 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// Ensure uploads dir exists
-fs.mkdirSync("uploads", { recursive: true });
+// Ensure uploads dir exists (/tmp is the only writable dir in serverless envs)
+const UPLOADS_DIR = process.env.UPLOADS_DIR || "/tmp/uploads";
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
-const upload = multer({ dest: "uploads/" });
+const upload = multer({ dest: UPLOADS_DIR });
 
 const qdrantConfig = {
   url: process.env.QDRANT_URL || "http://localhost:6333",
